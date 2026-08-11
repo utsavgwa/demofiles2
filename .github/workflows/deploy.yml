@@ -17,20 +17,29 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      # Project pages are served under /<repo>; SITE_URL feeds canonical tags and the sitemap.
-      BASE_PATH: /${{ github.event.repository.name }}
-      SITE_URL: https://${{ github.repository_owner }}.github.io
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Build
-        run: node build.mjs
-      - name: Audit (link integrity, headings, labels, metadata)
-        run: node audit.mjs
+
+      # Runs first so the build can take its base path and origin from Pages itself,
+      # which keeps the output correct whether the site is served from a custom domain,
+      # a github.io project path, or a domain root.
       - uses: actions/configure-pages@v5
+        id: pages
+
+      - name: Build
+        env:
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          SITE_URL: ${{ steps.pages.outputs.origin }}
+        run: node build.mjs
+
+      - name: Audit (link integrity, headings, labels, metadata)
+        env:
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
+        run: node audit.mjs
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
