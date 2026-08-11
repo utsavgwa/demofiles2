@@ -1,0 +1,525 @@
+================================================================================
+BOZ — ENGINEERING NOTES
+A static replica of heyaristotle.com, rebuilt with a minimal stack and
+Dickens-derived dummy content.
+Last updated: 12 August 2026
+================================================================================
+
+CONTENTS
+  1. What this is
+  2. The stack, layer by layer
+  3. How the build works
+  4. How each page is produced
+  5. How the waitlist capture works
+  6. How the interactive pieces work
+  7. Accessibility work
+  8. Decisions and trade-offs
+  9. QA results
+ 10. Known limits and what comes next
+ 11. Commands and file map
+
+
+================================================================================
+1. WHAT THIS IS
+================================================================================
+
+heyaristotle.com sells an AI tutor to parents. This project analysed that site
+end to end (information architecture, design tokens, component vocabulary,
+interaction details, and the shipped stack), then rebuilt an equivalent site
+called Boz using the smallest stack that can do the job honestly.
+
+All content is dummy content taken from the works of Charles Dickens, which are
+in the public domain. The product is fictional. No text, image, font file, or
+stylesheet from the original site is redistributed here; the design tokens and
+layout patterns were measured and re-implemented.
+
+16 routes: home, books, pricing, method, testimonials, blog + 2 posts,
+waitlist onboarding, sign in, careers, fellows, fellowship, privacy, terms, 404.
+
+
+================================================================================
+2. THE STACK, LAYER BY LAYER
+================================================================================
+
+  Layer            Choice                                    Dependencies
+  ---------------  ----------------------------------------  ------------
+  Language         JavaScript (ESM), Node 18+                none
+  Build            one script, build.mjs                     none
+  Templating       tagged template literals in .mjs modules   none
+  Styling          one hand-written CSS file, custom props    none
+  Client JS        two vanilla scripts, ~105 + ~290 lines     none
+  Fonts            system serif + system sans stacks          none
+  Images           inline SVG authored in this repo           none
+  Storage          browser localStorage                       none
+  Dev server       serve.mjs on node:http                     none
+  Static audit     audit.mjs                                  none
+  Deploy target    any static host                            none
+
+package.json has no "dependencies" and no "devDependencies". There is no
+lockfile, no node_modules, no bundler, no transpiler, no CSS preprocessor, and
+no third-party request at runtime.
+
+WHAT THE ORIGINAL USES, AND WHY WE DID NOT COPY IT
+  The original is Next.js App Router on Vercel (evidence: the "vary: rsc,
+  next-router-state-tree" response header, "x-nextjs-prerender: 1",
+  "x-vercel-cache: HIT", and /_next/static/* asset paths), styled with CSS
+  Modules over a hand-rolled token layer, with self-hosted Recoleta and Host
+  Grotesk fonts and next/image for responsive images.
+
+  That stack is reasonable for a funded team that also runs a logged-in app in
+  React. It is not the minimum for this job. The pages are static marketing
+  content; the only interactive parts are a menu, two carousels, and two forms.
+  The original ships roughly 230 KB of HTML (RSC payload inline), ~114 KB of CSS
+  across five chunks, and eight JS chunks to do that. This build ships one HTML
+  document per page (4–26 KB), a 30 KB stylesheet, and 3.5–11 KB of JS.
+
+
+================================================================================
+3. HOW THE BUILD WORKS
+================================================================================
+
+  npm run build
+    -> node build.mjs
+       1. delete dist/
+       2. copy public/ into dist/ verbatim (CSS, JS, SVG textures, brand mark)
+       3. import every module in src/pages/
+       4. each module default-exports an array of page descriptors:
+            { path, title, description, render() }
+       5. for each descriptor, write dist/<path>/index.html from render()
+
+  That is the entire pipeline, about 30 lines. Page discovery is filesystem
+  based, so adding src/pages/thing.mjs adds routes with no registration step.
+
+  Full rebuild takes ~40 ms and produces ~250 KB of output.
+
+  DATA FLOW
+    src/data/*.mjs     plain JS objects: all copy, prices, book lists, legal text
+        |
+    src/pages/*.mjs    compose data into HTML using primitives
+        |
+    src/lib/ui.mjs     page shell, header, footer, section, heading, text,
+    src/lib/icons.mjs  button, card, field, inline SVG art
+        |
+    build.mjs          writes dist/**/index.html
+        |
+    public/*           copied alongside, referenced by absolute paths
+
+  Nothing renders at runtime. A page is a pure function from data to a string.
+
+
+================================================================================
+4. HOW EACH PAGE IS PRODUCED
+================================================================================
+
+  ui.mjs exports the vocabulary every page speaks:
+
+    page({ title, description, body, bodyClass, scripts })
+        the full document: head, header, <main>, footer, script tags.
+        `scripts` lets a page opt into extra JS — only /go/onboard and
+        /go/signin load waitlist.js, so marketing pages never download it.
+
+    section(content, { background, spacing, container, torn })
+        background: 'default' | 'graph' | 'paper' | 'accent'
+        'graph' tiles a 15px SVG grid at 30px (the school-exercise-book look).
+        'paper' switches to the cream surface and can grow torn-paper edges.
+        'accent' re-maps the semantic colour variables, so one class inverts
+        every child component inside an oxblood band with no per-component work.
+
+    heading(level, body, { variant, align, className, id })
+        Heading LEVEL and heading LOOK are independent. That is what lets a
+        plan card title be an <h2> for screen readers while still rendering at
+        h3 size — no skipped levels, no visual compromise.
+
+    field({ id, label, type, required, autocomplete, hint, options })
+        one labelled control with its hint and error region pre-wired via
+        aria-describedby. Rendering the error node up front (empty) keeps the
+        aria wiring static, so the client script only sets textContent.
+
+    text / eyebrow / preheading / button / ctaLink / card / icon / heroScene
+
+  esc() is applied at every interpolation of author-supplied text inside the
+  primitives, so escaping is a property of the component rather than a thing
+  each caller must remember.
+
+  PAGE MODULES
+    home.mjs         hero, school marquee, differentiator, testimonial
+                     carousel, five method cards, founder essay, blog teasers
+    books.mjs        five categories, 18 titles with skill-map counts
+    pricing.mjs      three plans, comparison table, FAQ (<details>), CTA band
+    method.mjs       foundation, evidence, contrast table, five principles,
+                     evaluation measures
+    testimonials.mjs 18-quote masonry wall
+    blog.mjs         index + one page per post, generated from the posts array
+    legal.mjs        privacy and terms, from a block grammar (see §8, D18)
+    misc.mjs         waitlist onboarding, sign in, careers, fellows,
+                     fellowship, 404
+
+
+================================================================================
+5. HOW THE WAITLIST CAPTURE WORKS
+================================================================================
+
+  REQUIREMENT
+    "As soon as the user updates details, capture them somewhere and show in
+    UI — thanks for submitting, you are added on the waitlist."
+
+  There is no server, so "capture" means the visitor's own browser. The flow is
+  deliberately honest: everything the confirmation shows came from the person
+  reading it, and the page says where it is stored.
+
+  FILES
+    src/pages/misc.mjs        form markup AND confirmation-panel markup
+    public/scripts/waitlist.js  behaviour only; it fills [data-slot] nodes
+
+  No HTML is built in JavaScript. The panel exists in the document, hidden;
+  the script sets text into named slots and flips which view is visible. That
+  keeps markup reviewable in one place and keeps the script small.
+
+  SUBMIT PATH (/go/onboard)
+    1. submit -> preventDefault
+    2. validate(): rules for email (present, shaped like an address) and child
+       name (present, <= 40 chars). Each failure writes the message into
+       #<id>-error, sets aria-invalid="true", and adds .has-error to the field.
+       Focus moves to the first invalid control. A status line announces
+       "Check the highlighted fields and try again" via aria-live.
+    3. on success, build the entry:
+         { email, child, year, book, reference, position, createdAt }
+       reference and position are derived from an FNV-1a hash of the lowercased
+       email, so the same address always produces the same BOZ-XXXX reference
+       and the same queue number. A returning visitor sees the number they saw
+       before, which is what makes it feel real rather than random.
+       Queue position = 1200 + (hash % 900): a first entry reading "#1" would
+       give the game away.
+    4. write to localStorage under "boz.waitlist.v1"
+    5. render the panel: thanks message naming the child and the email, the
+       full detail list, a three-step "what happens next", and actions
+    6. move focus to the panel (tabindex="-1") and announce the position and
+       reference in the live region
+
+  RETURN VISIT
+    On load the script reads storage and, if an entry exists, shows the panel
+    immediately — but does NOT move focus, because stealing focus on page load
+    disorients someone who only wanted to read the page.
+
+  ACTIONS ON THE PANEL
+    Edit details    prefills the form from storage and returns to the form view
+    Copy reference  navigator.clipboard, with a spoken fallback if it is blocked
+    Remove my entry window.confirm, then clear storage, reset the form, and
+                    announce the deletion — a real delete, not a hidden flag
+
+  SIGN IN (/go/signin)
+    Same machinery, different copy: validate the email, then show a "check your
+    inbox" panel naming the address, with a 30-second resend cooldown on the
+    button and a "use a different email" escape hatch. If the address matches a
+    saved waitlist entry, the panel also reports that entry's reference and
+    queue position. That cross-reference costs three lines and is the detail
+    that makes the two pages feel like one product.
+
+  FAILURE HANDLING
+    Every localStorage access is wrapped in try/catch. Safari in private mode
+    throws on setItem, and storage can be disabled entirely. When the write
+    fails, the confirmation still renders, and the status line says the entry
+    will not survive a reload. The visitor is never shown a lie.
+
+  WITHOUT JAVASCRIPT
+    The form is inert and a <noscript> block says so, rather than looking
+    functional and silently discarding what was typed.
+
+
+================================================================================
+6. HOW THE INTERACTIVE PIECES WORK
+================================================================================
+
+  public/scripts/app.js — loaded on every page, ~105 lines, one IIFE.
+
+  MOBILE MENU
+    Toggles aria-expanded and the hidden attribute on #mobile-nav. Escape
+    closes it and returns focus to the toggle.
+
+  CAROUSELS (home testimonials, home method cards)
+    The track is a native scroll-snap container: it already swipes and scrolls
+    with no JS. The script adds pagination dots computed from track width, so
+    the dot count adapts to the breakpoint, plus arrow-key paging when focus is
+    in the dot strip. Dots are real <button role="tab"> elements with
+    aria-selected and per-dot labels. Without JS the dots are absent and the
+    track still scrolls.
+
+  SCROLL REVEALS
+    An IntersectionObserver adds .is-visible to cards, headings, and prose
+    blocks as they enter the viewport. Three rules keep it from being annoying:
+      - the pre-reveal state is applied by JS (html.reveal-enabled), so content
+        is visible by default for no-JS visitors and never "hidden and stuck"
+      - anything already on screen at first paint is marked visible with no
+        animation, so the page does not flash in front of someone who has not
+        scrolled
+      - if prefers-reduced-motion is set, the whole feature is skipped
+    Elements are selected by a list in the script rather than tagged in every
+    template, so the effect can be removed in one place.
+
+  LEGAL CONTENTS RAIL
+    A second observer sets aria-current="true" on the table-of-contents link
+    for the section currently in view, which also drives the visual highlight.
+
+  FOOTER INKWELL
+    Click it. It shakes. Every site of this kind has one.
+
+
+================================================================================
+7. ACCESSIBILITY WORK
+================================================================================
+
+  Structure
+    - one <h1> per page, no skipped heading levels anywhere (enforced by
+      audit.mjs, which fails the build on a violation)
+    - landmarks: header, nav (labelled), main, footer on every page
+    - skip link to #main as the first focusable element
+
+  Forms
+    - every control has a <label for> pointing at its id
+    - required fields carry both `required` and aria-required
+    - errors live in a node referenced by aria-describedby and marked
+      role="alert"; the control gets aria-invalid
+    - focus moves to the first invalid control on a failed submit, and to the
+      confirmation panel on a successful one
+    - a polite live region narrates state changes
+
+  Colour
+    - the source's primary button (white text on a coral gradient) measured
+      2.6:1, below the 4.5:1 AA requirement. The gradient was re-cut to run
+      fuji-500 -> fuji-600, which measures 4.8:1 at its lightest point.
+    - no other text/background pair on the site falls below its AA threshold
+
+  Targets and motion
+    - standalone controls are at least 24x24 CSS px (WCAG 2.2, 2.5.8): the
+      carousel dot keeps its 9px look inside a 24px transparent hit area
+    - prefers-reduced-motion disables the marquee, the reveals, the seal
+      animation, smooth scrolling, and every transition
+
+  Images
+    - decorative SVG is aria-hidden; the school marquee is aria-hidden with a
+      visually-hidden real list behind it, so the names are announced once
+      instead of twice
+
+  Not done: a screen-reader pass with an actual screen reader, and an axe-core
+  run (no external scripts can load in this environment). Automated checks
+  cover perhaps a third of WCAG; the rest is a manual pass we have only partly
+  done. Do not read "no violations" as "accessible".
+
+
+================================================================================
+8. DECISIONS AND TRADE-OFFS
+================================================================================
+
+  Each entry: what was chosen, why, what it costs, and what would reverse it.
+
+  D1  STATIC HTML FROM A NODE SCRIPT, NOT NEXT.JS
+      Why: nothing on these pages needs a framework at runtime; the app itself
+      lives behind /go/*. Cost: no file-based routing, no image pipeline, no
+      MDX, no built-in preview deploys. Reverse when: the marketing site must
+      share components or auth with the logged-in product.
+
+  D2  A BUILD STEP, NOT 16 HAND-WRITTEN HTML FILES
+      Why: header, footer, and section chrome repeat on every page; copies
+      drift. Cost: you must run a command to see changes. This is the cheapest
+      abstraction that removes the duplication and nothing more.
+
+  D3  PLAIN CSS, NOT TAILWIND
+      Why: the design system is already expressed as custom properties, and the
+      signature effects (conic-gradient border draw, torn-paper masks, squiggle
+      underline) are custom CSS a utility framework would only wrap. Cost:
+      class naming stays a matter of discipline. Reverse when: many engineers
+      edit the CSS at once.
+
+  D4  SYSTEM FONTS, NOT RECOLETA AND HOST GROTESK
+      Why: Recoleta is commercially licensed; shipping its files in a replica
+      would be a licence violation. Cost: the display face is close in spirit
+      (old-style serif) but is not the same typeface and varies by platform.
+      Reverse when: a licence is bought — swap two variables, add @font-face.
+
+  D5  ORIGINAL SVG ART, NOT COPIED ASSETS
+      Why: the hero illustration, apple mark, stickers, and school logos are
+      the original site's property. Cost: less polished than commissioned art.
+
+  D6  REUSE THE MEASURED DESIGN TOKENS
+      Why: this is a replica; colour values and spacing steps are functional
+      facts of the layout. Combined with D4 and D5 and the rename, the result
+      reads as the same design language without reusing a protected asset.
+
+  D7  RENAME THE PRODUCT TO "BOZ"
+      Why: Dickens's own pen name keeps the single-historical-name pattern and
+      makes it unmistakable that this is a study build, not a clone trading on
+      someone's brand.
+
+  D8  SUBJECTS BECOME BOOKS, PLANS BECOME NOVELS
+      Why: the dummy content had to be Dickens, and a reading tutor makes
+      Dickens the subject matter rather than random filler. Structure (skill
+      counts, categories, tiering) is preserved exactly.
+
+  D9  CAROUSELS ARE NATIVE SCROLL-SNAP TRACKS
+      Why: the browser already does the hard part. Cost: dots need JS, so they
+      disappear without it — acceptable, since the content stays reachable.
+
+  D10 REAL PAGES BEHIND EVERY FOOTER LINK
+      Why: a replica with dead links is not a replica, and the legal pages need
+      somewhere to state the demonstration status.
+
+  D11 CAPTURE TO localStorage, NOT A FAKE SUCCESS SCREEN
+      Why: the request was to capture details and show them back. A panel that
+      says "thanks" and forgets everything on reload is theatre. Storing the
+      entry makes the flow behave like the real thing: it persists, it can be
+      edited, and it can be deleted. Cost: the data is per-browser and per
+      device, which is exactly what the UI and the privacy page say it is.
+      Trade-off considered: posting to a form service (Formspree, a serverless
+      function) would give a real inbox, but adds a dependency, a network
+      failure mode, a privacy surface, and a secret to manage — for a
+      demonstration build that is a bad trade.
+
+  D12 DERIVE THE REFERENCE AND QUEUE NUMBER FROM A HASH OF THE EMAIL
+      Why: stability. Random numbers change on every submit and the illusion
+      breaks the second someone resubmits. FNV-1a is eight lines and gives the
+      same answer forever. Cost: two different people could collide on a
+      position; harmless here, and a real backend would assign a sequence.
+
+  D13 PANEL MARKUP IN THE TEMPLATE, DATA-SLOTS FILLED BY SCRIPT
+      Why: keeps HTML reviewable in one place and keeps the script free of
+      string-concatenated markup, which is where XSS and drift come from.
+      Cost: the panel ships on the page even when unused (about 2 KB).
+
+  D14 PER-PAGE SCRIPTS
+      Why: waitlist.js is only useful on two pages. page({ scripts }) keeps it
+      off the other fourteen. Cost: one more parameter in the shell.
+
+  D15 DARKEN THE PRIMARY BUTTON GRADIENT
+      Why: the original's coral gradient fails WCAG AA with white text at
+      2.6:1. Cost: a visible departure from the source's brightest accent.
+      This was the one case where fidelity to the original was knowingly
+      traded for something more important.
+
+  D16 SHIP A STATIC AUDIT SCRIPT (audit.mjs)
+      Why: link integrity, heading order, label wiring, alt text, duplicate
+      ids, and page metadata are all checkable without a browser, so they can
+      gate a deploy. `npm run audit` exits non-zero on any violation.
+      Cost: it only covers what static HTML can prove — it says nothing about
+      contrast, focus order, or anything that needs layout.
+
+  D17 HEADING LEVEL AND HEADING SIZE ARE SEPARATE INPUTS
+      Why: plan cards and blog cards needed to be h2 for document structure but
+      h3 in size. Coupling the two forces a choice between correct semantics
+      and correct visuals; separating them costs one optional argument.
+
+  D18 LEGAL PAGES ARE DATA, NOT MARKUP
+      Why: both documents render from a small block grammar
+      ({ type: 'p' | 'h' | 'list' | 'table' }), so adding a clause is a data
+      edit and the table of contents, anchors, and contents-rail highlight are
+      generated. Cost: a clause that needs unusual formatting has to extend the
+      grammar first.
+
+  D19 LEGAL CONTENT WRITTEN AS IF THE PRODUCT WERE REAL, WITH ONE HONEST BANNER
+      Why: the pages were asked to be production-grade. Both follow the full
+      frameworks — 14 privacy sections, 18 terms sections, cookie table,
+      processor table, retention by category, GDPR and CCPA supplements — and
+      because the end users would be children, they lead with parental consent,
+      data minimisation, and a hard no-training statement. A demonstration
+      notice at the top of each page keeps the whole thing truthful. Cost:
+      none, beyond the reminder that a lawyer has not reviewed it.
+
+  D20 SCROLL REVEALS ARE OPT-OUT BY DEFAULT AND NEVER TRAP CONTENT
+      Why: the common failure mode of reveal animations is content that never
+      appears — JS fails, or the observer never fires, and the page is blank.
+      Here the hidden state is only applied once JS has run and confirmed
+      IntersectionObserver exists, and anything already on screen skips the
+      animation entirely.
+
+  D21 A DEV SERVER IN THE REPO (serve.mjs)
+      Why: opening dist/index.html over file:// breaks absolute asset paths and
+      directory-index URLs, so it would misrepresent the build. 45 lines of
+      node:http reproduce production URL semantics, including a 404 that
+      actually returns 404.
+
+
+================================================================================
+9. QA RESULTS
+================================================================================
+
+  Static audit (npm run audit)
+    16 pages, 22 assets: no dead links, no missing assets, exactly one <h1>
+    per page, no skipped heading levels, no unlabelled controls, no images
+    without alt, no duplicate ids, every page has a title and description.
+
+  Browser (Chromium, localhost)
+    - waitlist: empty submit shows both errors, sets aria-invalid, focuses the
+      first invalid field, announces the failure
+    - waitlist: invalid email rejected with a specific message
+    - waitlist: valid submit stores the entry, renders every detail slot,
+      moves focus to the panel, announces position and reference
+    - waitlist: reload restores the panel without stealing focus; edit
+      prefills from storage; resubmit keeps the same reference
+    - sign in: sends the "check your inbox" panel, finds the matching waitlist
+      entry, disables resend for 30 seconds, returns to the form on demand
+    - menu: opens, closes on Escape, returns focus to the toggle
+    - console: no errors on any page
+
+  Responsive (375, 768, 1280, 2000-tall viewports)
+    - no horizontal overflow on any page at 375px after the fix below
+    - FOUND AND FIXED: on /privacy the grid column was inflated past the
+      viewport by a wide table, because grid and flex children default to
+      min-width:auto. Fixed with min-width:0 on the layout children.
+    - FOUND AND FIXED: carousel dots, footer links, TOC links, and anchor
+      links were below the 24px minimum target size.
+    - FOUND AND FIXED: white on the coral gradient measured 2.6:1 (see D15).
+    - FOUND AND FIXED: a form label was double-escaped and rendered as
+      "Student&#39;s first name".
+
+  Not verified: browsers other than Chromium (the animated dashed border
+  degrades to a static dashed border where @property is unsupported), and any
+  assistive technology beyond attribute-level checks.
+
+
+================================================================================
+10. KNOWN LIMITS AND WHAT COMES NEXT
+================================================================================
+
+  - The waitlist is per-browser. A real deployment needs an endpoint, a
+    database, and double opt-in email. The client contract would not change:
+    the same panel, fed by a POST instead of localStorage.
+  - No CMS. Editing copy means editing a JS object, which is fine for
+    engineers and not fine for a marketing team. Astro with content
+    collections is the natural next step.
+  - No test suite. audit.mjs covers structural regressions; the interaction
+    behaviour was verified by hand in a browser and is not pinned by tests.
+  - No image pipeline. All art is inline SVG, which suits this design but does
+    not survive contact with photography.
+  - The legal pages have not been reviewed by a lawyer, and say so.
+
+
+================================================================================
+11. COMMANDS AND FILE MAP
+================================================================================
+
+  npm run build     write dist/
+  npm run serve     serve dist/ on http://localhost:4321
+  npm run dev       build, then serve
+  npm run audit     build, then run the static audit (exit 1 on any problem)
+
+  build.mjs                 discover pages, render, write, copy assets
+  serve.mjs                 static server, directory index, 404 fallback
+  audit.mjs                 link, structure, and a11y checks over dist/
+  src/data/site.mjs         brand, nav, footer, CTAs
+  src/data/home.mjs         hero, schools, method cards, founder essay
+  src/data/books.mjs        18 titles in 5 categories
+  src/data/pricing.mjs      plans, comparison rows, FAQ
+  src/data/testimonials.mjs 18 Dickens quotations as customers
+  src/data/method.mjs       principles, evidence, evaluation
+  src/data/blog.mjs         posts and date formatting
+  src/data/legal.mjs        privacy (14 sections) and terms (18 sections)
+  src/lib/ui.mjs            document shell and HTML primitives
+  src/lib/icons.mjs         inline SVG icon set and hero illustration
+  src/pages/*.mjs           one module per page area
+  public/styles/app.css     the whole stylesheet, 18 numbered sections
+  public/scripts/app.js     menu, carousels, reveals, contents rail
+  public/scripts/waitlist.js  waitlist capture and sign-in flow
+  public/textures/          graph paper, torn edge
+  public/brand/             inkwell mark
+
+  DOCUMENTATION.md          source analysis, PRD, architecture, decision log
+  README.md                 short orientation
