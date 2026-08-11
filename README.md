@@ -1,5 +1,7 @@
 # Boz
 
+**Live: https://utsav23.com/demofiles2/** — deployed from `main` by GitHub Actions.
+
 A static replica of the structure and design language of `heyaristotle.com`, rebuilt with the
 smallest stack that does the job, using dummy content drawn from the works of Charles Dickens.
 

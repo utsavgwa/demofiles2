@@ -439,7 +439,12 @@ changes.
 
 **Restyle.** Change the tokens in section 1 of `public/styles/app.css`; the whole site follows.
 
-**Deploy.** Upload `dist/` anywhere — Netlify, Vercel, GitHub Pages, S3 + CloudFront, nginx.
+**Live deployment.** https://utsav23.com/demofiles2/ — GitHub Actions builds on every push to `main`, runs
+`audit.mjs`, and only publishes if the audit passes. Base path and origin come from
+`actions/configure-pages`, so the same source builds correctly at a domain root, a
+`github.io` project path, or the custom domain in use here.
+
+**Deploy elsewhere.** Upload `dist/` anywhere — Netlify, Vercel, GitHub Pages, S3 + CloudFront, nginx.
 Configure the host's 404 page to `404/index.html`. No build image, no runtime, no environment
 variables.
 
