@@ -523,3 +523,47 @@ WHAT THE ORIGINAL USES, AND WHY WE DID NOT COPY IT
 
   DOCUMENTATION.md          source analysis, PRD, architecture, decision log
   README.md                 short orientation
+
+
+================================================================================
+12. DEPLOYMENT
+================================================================================
+
+  HOST
+    GitHub Pages, built and deployed by .github/workflows/deploy.yml on every
+    push to main. The workflow runs `node build.mjs`, then `node audit.mjs`,
+    and only uploads the artifact if the audit exits zero — a dead link or a
+    skipped heading level fails the deploy rather than shipping.
+
+  BASE PATH (D22)
+    Project pages are served from https://<owner>.github.io/<repo>/, not from a
+    domain root, so every absolute URL in the HTML needs a prefix.
+
+    Chosen: rewrite root-relative href/src values once, in build.mjs, from the
+    BASE_PATH environment variable. The stylesheet references its own textures
+    relatively (../textures/...), so CSS needs no rewriting at all, and the two
+    client scripts reference no assets.
+
+    Rejected: threading a base-path helper through every call site in every
+    page module (churn in a dozen files for one deployment concern), and
+    <base href> (it also rewrites in-page anchors and form actions, which
+    breaks the legal table of contents).
+
+    Cost: the rewrite is a regex over emitted HTML rather than a typed API. It
+    is exact about what it matches — href/src beginning with a single slash —
+    so protocol-relative, external, mailto and hash links are untouched.
+
+    The same output still works at a domain root: build with no BASE_PATH and
+    nothing is rewritten. `npm run audit` strips the prefix before checking
+    routes, so both builds are verified the same way.
+
+  ALSO EMITTED FOR PRODUCTION
+    dist/404.html   static hosts serve this for unmatched paths; the build
+                    writes it alongside dist/404/index.html
+    sitemap.xml     every route except 404, with today's date
+    robots.txt      allow-all plus the sitemap location
+    canonical tags  absolute, derived from SITE_URL + BASE_PATH
+
+  COMMANDS
+    npm run build:pages   build the subpath variant locally
+    npm run audit         build at root and verify

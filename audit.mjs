@@ -7,6 +7,11 @@ import { fileURLToPath } from 'node:url';
 
 const dist = join(dirname(fileURLToPath(import.meta.url)), 'dist');
 
+// Emitted URLs carry BASE_PATH when the site is built for a project subpath; strip it
+// so route checks compare like with like.
+const BASE_PATH = (process.env.BASE_PATH ?? '').replace(/\/$/, '');
+const stripBase = (url) => (BASE_PATH && url.startsWith(`${BASE_PATH}/`) ? url.slice(BASE_PATH.length) : url);
+
 async function walk(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
   const files = await Promise.all(
@@ -38,7 +43,8 @@ for (const file of pages) {
   if (!/<meta name="description" content="[^"]{20,}"/.test(html)) fail(route, 'description', 'missing meta description');
 
   // links and assets
-  for (const [, url] of html.matchAll(/(?:href|src)="(\/[^"#?]*)"/g)) {
+  for (const [, raw] of html.matchAll(/(?:href|src)="(\/[^"#?]*)"/g)) {
+    const url = stripBase(raw);
     if (/\.(css|js|svg|png|ico|woff2?)$/.test(url)) {
       if (!assets.has(url)) fail(route, 'asset', `missing ${url}`);
     } else if (!routes.has(url)) {

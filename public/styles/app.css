@@ -183,7 +183,7 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .section { width: 100%; position: relative; }
 .section.default { background: var(--color-surface); }
 .section.graph {
-  background: var(--color-surface) url("/textures/graph-paper.svg") repeat;
+  background: var(--color-surface) url("../textures/graph-paper.svg") repeat;
   background-size: 30px 30px;
 }
 .section.paper { background: var(--color-surface-alt); --tear-color: var(--color-surface-alt); }
@@ -206,8 +206,8 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .torn-surface {
   position: absolute; inset: 0;
   background: var(--tear-color, var(--color-surface-alt));
-  -webkit-mask: url("/textures/torn-edge.svg") repeat-x;
-  mask: url("/textures/torn-edge.svg") repeat-x;
+  -webkit-mask: url("../textures/torn-edge.svg") repeat-x;
+  mask: url("../textures/torn-edge.svg") repeat-x;
   -webkit-mask-size: auto 100%;
   mask-size: auto 100%;
 }
@@ -513,7 +513,7 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   height: 128px;
   margin-bottom: var(--space-6);
   border-radius: var(--radius-md);
-  background: var(--palette-core-200) url("/textures/graph-paper.svg") repeat;
+  background: var(--palette-core-200) url("../textures/graph-paper.svg") repeat;
   background-size: 22px 22px;
   color: var(--palette-fuji-600);
 }
