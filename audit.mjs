@@ -2,7 +2,7 @@
 // Checks: internal link integrity, asset references, heading order, form labelling,
 // image alt text, duplicate ids, and required document metadata.
 import { readdir, readFile } from 'node:fs/promises';
-import { join, relative, dirname } from 'node:path';
+import { join, relative, dirname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const dist = join(dirname(fileURLToPath(import.meta.url)), 'dist');
@@ -15,6 +15,8 @@ const stripBase = (url) => (BASE_PATH && url.startsWith(`${BASE_PATH}/`) ? url.s
 // When consent is switched on it must reach every page, and the stub must run before
 // anything else in <head>. A page that misses it would set cookies without asking.
 const CONSENT_ID = process.env.ONETRUST_DOMAIN_ID ?? '';
+const SITE_URL = (process.env.SITE_URL ?? '').replace(/\/$/, '');
+const expectedCanonical = (route) => `${SITE_URL}${BASE_PATH}${route === '/' ? '/' : route}`;
 
 async function walk(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
@@ -30,10 +32,13 @@ const routeOf = (file) => {
 };
 
 const problems = [];
+const indexable = new Map();
 const fail = (page, rule, detail) => problems.push({ page, rule, detail });
 
 const files = await walk(dist);
-const pages = files.filter((f) => f.endsWith('.html'));
+// 404.html is a byte-identical fallback copy of /404 that static hosts serve for unmatched
+// paths. Auditing it as its own route would flag its canonical as wrong, which it is not.
+const pages = files.filter((f) => f.endsWith('.html') && !f.endsWith(`${sep}404.html`));
 const routes = new Set(pages.map(routeOf));
 const assets = new Set(files.map((f) => `/${relative(dist, f)}`));
 
@@ -53,10 +58,57 @@ for (const file of pages) {
     if (!html.includes('ot-sdk-show-settings')) fail(route, 'consent', 'no cookie preferences control');
   }
 
+  // --- SEO: metadata that must be on every page ---
+  const meta = (name) => html.match(new RegExp(`<meta (?:name|property)="${name}" content="([^"]*)"`))?.[1];
+
+  const titleText = html.match(/<title>([^<]*)<\/title>/)?.[1] ?? '';
+  if (titleText.length > 65) fail(route, 'title-length', `${titleText.length} chars, aim for <= 65`);
+  const desc = meta('description') ?? '';
+  const indexablePage = !html.includes('content="noindex');
+  if (!desc) fail(route, 'description', 'missing meta description');
+  else if (indexablePage && (desc.length < 50 || desc.length > 165)) {
+    fail(route, 'description-length', `${desc.length} chars, aim for 50-165`);
+  }
+
+  const canonical = html.match(/<link rel="canonical" href="([^"]+)"/)?.[1];
+  if (!canonical) fail(route, 'canonical', 'missing canonical link');
+  else if (SITE_URL && canonical !== expectedCanonical(route)) {
+    fail(route, 'canonical', `points at ${canonical}, expected ${expectedCanonical(route)}`);
+  }
+
+  for (const tag of ['og:title', 'og:description', 'og:url', 'og:image', 'og:type', 'twitter:card', 'twitter:image']) {
+    if (!meta(tag)) fail(route, 'social-meta', `missing ${tag}`);
+  }
+
+  const robotsMeta = meta('robots');
+  if (!robotsMeta) fail(route, 'robots-meta', 'missing robots meta');
+  const isNoindex = robotsMeta?.includes('noindex');
+
+  // --- SEO: structured data ---
+  const ld = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1];
+  if (!ld) {
+    if (!isNoindex) fail(route, 'structured-data', 'no JSON-LD on an indexable page');
+  } else {
+    try {
+      const parsed = JSON.parse(ld);
+      if (!parsed['@context']) fail(route, 'structured-data', 'JSON-LD without @context');
+      if (!Array.isArray(parsed['@graph']) || !parsed['@graph'].length) {
+        fail(route, 'structured-data', 'JSON-LD @graph is empty');
+      }
+      for (const node of parsed['@graph'] ?? []) {
+        if (!node['@type']) fail(route, 'structured-data', 'graph node without @type');
+      }
+    } catch (err) {
+      fail(route, 'structured-data', `JSON-LD does not parse: ${err.message}`);
+    }
+  }
+
+  indexable.set(route, !isNoindex);
+
   // links and assets
   for (const [, raw] of html.matchAll(/(?:href|src)="(\/[^"#?]*)"/g)) {
     const url = stripBase(raw);
-    if (/\.(css|js|svg|png|ico|woff2?)$/.test(url)) {
+    if (/\.(css|js|svg|png|ico|woff2?|xml|txt)$/.test(url)) {
       if (!assets.has(url)) fail(route, 'asset', `missing ${url}`);
     } else if (!routes.has(url)) {
       fail(route, 'link', `dead internal link ${url}`);
@@ -88,6 +140,24 @@ for (const file of pages) {
   const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
   const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
   if (dupes.length) fail(route, 'duplicate-id', [...new Set(dupes)].join(', '));
+}
+
+// --- SEO: site-level artefacts ---
+// sitemap.xml and feed.xml need absolute URLs, so they are only produced when SITE_URL is
+// known. A build without it is a local preview, not a deployable one.
+const required = ['robots.txt', 'og-image.png', 'llms.txt'];
+if (SITE_URL) required.push('sitemap.xml', 'feed.xml');
+for (const file of required) {
+  if (!assets.has(`/${file}`)) fail('(site)', 'seo-artefact', `missing ${file}`);
+}
+
+if (assets.has('/sitemap.xml')) {
+  const sitemap = await readFile(join(dist, 'sitemap.xml'), 'utf8');
+  for (const [route, isIndexable] of indexable) {
+    const listed = sitemap.includes(`${BASE_PATH}${route === '/' ? '/' : route}<`);
+    if (isIndexable && !listed) fail(route, 'sitemap', 'indexable page missing from sitemap');
+    if (!isIndexable && listed) fail(route, 'sitemap', 'noindex page listed in sitemap');
+  }
 }
 
 const byRule = problems.reduce((acc, p) => ({ ...acc, [p.rule]: (acc[p.rule] ?? 0) + 1 }), {});

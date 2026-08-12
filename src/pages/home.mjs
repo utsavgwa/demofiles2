@@ -1,4 +1,5 @@
 import { page, section, heading, text, preheading, eyebrow, button, ctaLink, card, esc } from '../lib/ui.mjs';
+import { organization, website, webPage } from '../lib/seo.mjs';
 import { icon, heroScene } from '../lib/icons.mjs';
 import { site } from '../data/site.mjs';
 import { hero, schools, differentiator, approach, mission, homeBlogTeasers } from '../data/home.mjs';
@@ -125,6 +126,17 @@ export default [
       'Boz is a voice-first reading tutor for ages 9 to 18. It learns how your child reads, then teaches the way they think best.',
     render: () =>
       page({
+        path: '/',
+        structuredData: [
+          organization(),
+          website(),
+          webPage({
+            path: '/',
+            title: 'Boz — the tutor who has read every book',
+            description:
+              'Boz is a voice-first reading tutor for ages 9 to 18. It learns how your child reads, then teaches the way they think best.',
+          }),
+        ],
         title: 'Boz — the tutor who has read every book',
         description:
           'Boz is a voice-first reading tutor for ages 9 to 18. It learns how your child reads, then teaches the way they think best.',

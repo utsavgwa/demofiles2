@@ -629,3 +629,96 @@ WHAT THE ORIGINAL USES, AND WHY WE DID NOT COPY IT
     no analytics, no advertising, no embeds — so there is nothing to gate yet.
     When one is added, it must be given a OneTrust category and loaded from
     OptanonWrapper rather than directly.
+
+
+================================================================================
+14. SEO, CRAWLABILITY AND STRUCTURED DATA
+================================================================================
+
+  The site was already the easy case for search: static HTML, server-rendered
+  at build time, no client-side routing, every route reachable by an <a href>
+  within two clicks of the home page. Nothing is hidden behind JavaScript, so a
+  crawler that executes no script sees the entire site.
+
+  PER-PAGE HEAD (src/lib/ui.mjs, page())
+    title, meta description, canonical (absolute, self-referencing),
+    robots (index, follow, max-image-preview:large, max-snippet:-1,
+    max-video-preview:-1), theme-color, color-scheme,
+    og:type/site_name/locale/title/description/url/image (+ width, height, alt),
+    twitter:card=summary_large_image with title/description/image/alt,
+    rel=icon, rel=alternate (Atom feed), rel=sitemap, and the JSON-LD block.
+
+    page() now takes the route, so the canonical is built from the same value
+    the builder writes the file to. Previously the canonical was injected by a
+    string replacement in build.mjs; moving it into the shell removed the only
+    place where the URL and the file location could disagree.
+
+  STRUCTURED DATA (src/lib/seo.mjs)
+    One @graph per page, nodes cross-referenced by @id:
+      Organization  site identity, logo, sameAs, knowsAbout, @id on every page
+      WebSite       linked to the Organization as publisher
+      WebPage       or CollectionPage, per route, isPartOf the WebSite
+      BreadcrumbList on every interior page
+      ItemList      books, plans, principles, blog posts
+      FAQPage       the six pricing questions, matched to the visible <details>
+      BlogPosting   per post, with datePublished, wordCount, author, publisher
+
+    WHAT IS DELIBERATELY ABSENT (D24)
+      No Offer, no price, no Review, no AggregateRating. Boz is fictional:
+      marking up plan prices as purchasable offers, or Dickens quotations as
+      customer reviews, would assert commercial facts that are not true. That
+      is the "schema for content that is not actually present" anti-pattern,
+      and it is the kind of markup search engines issue manual actions for.
+      The plans are still described, as an ItemList, which is accurate.
+
+      The Organization node carries a disambiguatingDescription saying the
+      company is a demonstration, so the graph is self-describing rather than
+      quietly pretending.
+
+  CRAWLER FILES
+    robots.txt   allow-all, plus nineteen AI agents named explicitly (GPTBot,
+                 ClaudeBot, PerplexityBot, Google-Extended, CCBot, Applebot-
+                 Extended, meta-externalagent and others). Several treat an
+                 unnamed site conservatively, so the explicit allow matters.
+    sitemap.xml  every indexable route with lastmod. Noindex routes are
+                 excluded, driven by the same flag that sets the robots meta,
+                 so the two can never disagree.
+    llms.txt     a plain-text map for language-model crawlers: what the site
+                 is, every page with its description, and a note that the
+                 company is fictional and no data is collected.
+    feed.xml     Atom feed for the blog, linked from every page head.
+    og-image.png 1200x630 social card.
+
+  NOINDEX
+    /404 and /go/signin. A 404 has nothing to rank, and an auth page has no
+    search value and would compete with the waitlist page for the same intent.
+    Both still say "follow", so link equity passes through.
+
+  THE OG IMAGE (D25)
+    Social platforms do not render SVG og:images, and this build has no image
+    pipeline and no dependencies. tools/og-image.mjs rasterises the card
+    directly: a byte framebuffer, rect/circle/polygon fills, and a PNG encoder
+    over node:zlib (CRC32 + IDAT + IHDR by hand). The wordmark is drawn as
+    geometry because there is no font rasteriser available.
+
+    Trade-off: it is a brand card, not a designed one, and every content change
+    leaves it unchanged. A per-page card with real type would need either a
+    headless browser or a font library, which is a heavier dependency than the
+    whole rest of this project.
+
+  AUDIT COVERAGE ADDED
+    audit.mjs now fails the build on: a missing or mismatched canonical, a
+    missing robots meta, a missing og/twitter tag, a title over 65 characters,
+    a description outside 50-165 characters on an indexable page, JSON-LD that
+    does not parse or has an empty @graph, an indexable page absent from the
+    sitemap, a noindex page present in it, or a missing crawler artefact.
+
+    It found four real problems on first run: thin meta descriptions on three
+    pages, and /404.html being audited as a route of its own when it is the
+    host's fallback copy of /404.
+
+  WHAT THIS BUILD STILL CANNOT DO
+    Performance data (Core Web Vitals need field measurement), hreflang (single
+    language), and any authority signal that comes from other sites linking
+    here. Indexing also needs the property verified in Search Console and the
+    sitemap submitted; that is an account action, not a code change.

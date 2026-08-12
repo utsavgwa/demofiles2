@@ -3,6 +3,7 @@
 import { page, section, heading, text, esc } from '../lib/ui.mjs';
 import { icon } from '../lib/icons.mjs';
 import { privacy, terms, legalMeta, demonstrationNotice } from '../data/legal.mjs';
+import { webPage, breadcrumbs } from '../lib/seo.mjs';
 
 const formatDate = (iso) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', {
@@ -60,6 +61,16 @@ const legalPage = (doc, path) => ({
   description: doc.summary,
   render: () =>
     page({
+      path,
+      structuredData: [
+        webPage({
+          path,
+          title: `${doc.title} — Boz`,
+          description: doc.summary,
+          extra: { dateModified: legalMeta.updated },
+        }),
+        breadcrumbs([{ name: 'Home', path: '/' }, { name: doc.title, path }]),
+      ],
       title: `${doc.title} — Boz`,
       description: doc.summary,
       bodyClass: 'page-legal',

@@ -1,4 +1,5 @@
 import { page, section, heading, text, button, esc } from '../lib/ui.mjs';
+import { webPage, breadcrumbs } from '../lib/seo.mjs';
 import { site } from '../data/site.mjs';
 import { testimonials, testimonialsIntro } from '../data/testimonials.mjs';
 
@@ -24,6 +25,13 @@ export default [
     description: testimonialsIntro.subhead,
     render: () =>
       page({
+        path: 'testimonials',
+        // No Review or AggregateRating: the quotations are fiction, and marking them up as
+        // customer reviews would assert something untrue to search engines.
+        structuredData: [
+          webPage({ path: 'testimonials', title, description: testimonialsIntro.subhead, type: 'CollectionPage' }),
+          breadcrumbs([{ name: 'Home', path: '/' }, { name: 'Testimonials', path: 'testimonials' }]),
+        ],
         title,
         description: testimonialsIntro.subhead,
         bodyClass: 'page-testimonials',

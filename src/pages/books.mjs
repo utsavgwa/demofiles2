@@ -1,4 +1,5 @@
 import { page, section, heading, text, preheading, button, card, esc } from '../lib/ui.mjs';
+import { webPage, breadcrumbs, itemList } from '../lib/seo.mjs';
 import { icon } from '../lib/icons.mjs';
 import { site } from '../data/site.mjs';
 import { booksIntro, bookGroups, booksCta } from '../data/books.mjs';
@@ -27,6 +28,15 @@ export default [
     description: esc(booksIntro.subhead),
     render: () =>
       page({
+        path: 'books',
+        structuredData: [
+          webPage({ path: 'books', title, description: booksIntro.subhead, type: 'CollectionPage' }),
+          breadcrumbs([{ name: 'Home', path: '/' }, { name: 'All books', path: 'books' }]),
+          itemList(
+            'Books taught by Boz',
+            bookGroups.flatMap((g) => g.items.map((b) => ({ name: b.title, description: b.blurb })))
+          ),
+        ],
         title,
         description: booksIntro.subhead,
         bodyClass: 'page-books',

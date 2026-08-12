@@ -1,6 +1,7 @@
 import { page, section, heading, text, eyebrow, button, ctaLink, esc } from '../lib/ui.mjs';
 import { icon } from '../lib/icons.mjs';
 import { site } from '../data/site.mjs';
+import { webPage, breadcrumbs, itemList, blogPosting, absoluteUrl } from '../lib/seo.mjs';
 import { posts, blogIntro, formatDate } from '../data/blog.mjs';
 
 const postCard = (p) => `
@@ -17,6 +18,15 @@ const index = {
   description: blogIntro.subhead,
   render: () =>
     page({
+      path: 'blog',
+      structuredData: [
+        webPage({ path: 'blog', title: 'Blog — Boz', description: blogIntro.subhead, type: 'CollectionPage' }),
+        breadcrumbs([{ name: 'Home', path: '/' }, { name: 'Blog', path: 'blog' }]),
+        itemList(
+          'Boz blog posts',
+          posts.map((p) => ({ name: p.title, description: p.excerpt, url: absoluteUrl(`blog/${p.slug}`) }))
+        ),
+      ],
       title: 'Blog — Boz',
       description: blogIntro.subhead,
       bodyClass: 'page-blog',
@@ -37,6 +47,27 @@ const postPage = (post) => ({
   description: post.excerpt,
   render: () =>
     page({
+      path: `blog/${post.slug}`,
+      structuredData: [
+        webPage({
+          path: `blog/${post.slug}`,
+          title: `${post.title} — Boz`,
+          description: post.excerpt,
+          extra: { datePublished: post.date, dateModified: post.date },
+        }),
+        breadcrumbs([
+          { name: 'Home', path: '/' },
+          { name: 'Blog', path: 'blog' },
+          { name: post.title, path: `blog/${post.slug}` },
+        ]),
+        blogPosting({
+          path: `blog/${post.slug}`,
+          title: post.title,
+          description: post.excerpt,
+          datePublished: post.date,
+          body: post.body,
+        }),
+      ],
       title: `${post.title} — Boz`,
       description: post.excerpt,
       bodyClass: 'page-post',

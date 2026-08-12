@@ -38,9 +38,10 @@ jobs:
           ONETRUST_DOMAIN_ID: ${{ vars.ONETRUST_DOMAIN_ID }}
         run: node build.mjs
 
-      - name: Audit (link integrity, headings, labels, metadata)
+      - name: Audit (links, headings, labels, metadata, SEO, structured data)
         env:
           BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          SITE_URL: ${{ steps.pages.outputs.origin }}
           ONETRUST_DOMAIN_ID: ${{ vars.ONETRUST_DOMAIN_ID }}
         run: node audit.mjs
 

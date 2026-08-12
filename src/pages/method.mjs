@@ -1,4 +1,5 @@
 import { page, section, heading, text, preheading, button, card, esc } from '../lib/ui.mjs';
+import { webPage, breadcrumbs, itemList } from '../lib/seo.mjs';
 import { icon } from '../lib/icons.mjs';
 import { site } from '../data/site.mjs';
 import { methodIntro, foundation, evidence, contrast, principles, evaluation, methodCta } from '../data/method.mjs';
@@ -46,6 +47,15 @@ export default [
     description: methodIntro.subhead,
     render: () =>
       page({
+        path: 'method',
+        structuredData: [
+          webPage({ path: 'method', title, description: methodIntro.subhead }),
+          breadcrumbs([{ name: 'Home', path: '/' }, { name: 'Our method', path: 'method' }]),
+          itemList(
+            'How Boz teaches',
+            principles.map((p) => ({ name: p.title, description: p.principle }))
+          ),
+        ],
         title,
         description: methodIntro.subhead,
         bodyClass: 'page-method',

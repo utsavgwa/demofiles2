@@ -1,4 +1,5 @@
 import { page, section, heading, text, preheading, button, card, esc } from '../lib/ui.mjs';
+import { webPage, breadcrumbs, itemList, faqPage } from '../lib/seo.mjs';
 import { icon } from '../lib/icons.mjs';
 import { site } from '../data/site.mjs';
 import { plans, comparison, pricingFaq, pricingIntro } from '../data/pricing.mjs';
@@ -47,6 +48,18 @@ export default [
     description: pricingIntro.subhead,
     render: () =>
       page({
+        path: 'pricing',
+        structuredData: [
+          webPage({ path: 'pricing', title, description: pricingIntro.subhead }),
+          breadcrumbs([{ name: 'Home', path: '/' }, { name: 'Pricing', path: 'pricing' }]),
+          // Plans are listed, not offered: no Offer or price node, because nothing here is
+          // actually purchasable.
+          itemList(
+            'Boz plans',
+            plans.map((p) => ({ name: p.name, description: `${p.price}${p.period} — ${p.sessions}` }))
+          ),
+          faqPage(pricingFaq),
+        ],
         title,
         description: pricingIntro.subhead,
         bodyClass: 'page-pricing',

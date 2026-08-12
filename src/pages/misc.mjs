@@ -7,6 +7,7 @@
 import { page, section, heading, text, preheading, button, ctaLink, field, esc } from '../lib/ui.mjs';
 import { icon } from '../lib/icons.mjs';
 import { site } from '../data/site.mjs';
+import { webPage, breadcrumbs } from '../lib/seo.mjs';
 
 const simple = ({ path, title, description, body, background = 'graph' }) => ({
   path,
@@ -14,6 +15,11 @@ const simple = ({ path, title, description, body, background = 'graph' }) => ({
   description,
   render: () =>
     page({
+      path,
+      structuredData: [
+        webPage({ path, title: `${title} — Boz`, description }),
+        breadcrumbs([{ name: 'Home', path: '/' }, { name: title, path }]),
+      ],
       title: `${title} — Boz`,
       description,
       bodyClass: `page-${path.replace(/\//g, '-')}`,
@@ -45,6 +51,15 @@ const onboard = {
   description: 'Save your place for three free one-hour sessions with Boz.',
   render: () =>
     page({
+      path: 'go/onboard',
+      structuredData: [
+        webPage({
+          path: 'go/onboard',
+          title: 'Join the waitlist — Boz',
+          description: 'Save your place for three free one-hour sessions with Boz.',
+        }),
+        breadcrumbs([{ name: 'Home', path: '/' }, { name: 'Join the waitlist', path: 'go/onboard' }]),
+      ],
       title: 'Join the waitlist — Boz',
       description: 'Save your place for three free one-hour sessions with Boz.',
       bodyClass: 'page-onboard',
@@ -136,10 +151,21 @@ const onboard = {
 
 const signin = {
   path: 'go/signin',
+  // Auth surfaces carry no search value and should not compete with the waitlist page.
+  noindex: true,
   title: 'Sign in — Boz',
   description: 'Sign in to your family account with a link sent to your email.',
   render: () =>
     page({
+      path: 'go/signin',
+      noindex: true,
+      structuredData: [
+        webPage({
+          path: 'go/signin',
+          title: 'Sign in — Boz',
+          description: 'Sign in to your family account with a link sent to your email.',
+        }),
+      ],
       title: 'Sign in — Boz',
       description: 'Sign in to your family account with a link sent to your email.',
       bodyClass: 'page-signin',
@@ -189,10 +215,13 @@ const signin = {
 
 const notFound = {
   path: '404',
+  noindex: true,
   title: 'Page not found — Boz',
   description: 'That page is not on the shelf.',
   render: () =>
     page({
+      path: '404',
+      noindex: true,
       title: 'Page not found — Boz',
       description: 'That page is not on the shelf.',
       bodyClass: 'page-404',
@@ -213,7 +242,8 @@ const notFound = {
 const careers = simple({
   path: 'careers',
   title: 'Careers',
-  description: 'We are a small team building one thing carefully.',
+  description:
+    'Working at Boz: a small team building one reading tutor carefully. What we look for, and how we hire readers who can build.',
   body: `${text('We hire readers who can build and builders who read. Roles are posted here when they open; this demonstration build lists none.', { tone: 'muted' })}
     ${preheading('What we look for', { align: 'start' })}
     <ul class="tick-list">
@@ -226,7 +256,8 @@ const careers = simple({
 const fellows = simple({
   path: 'fellows',
   title: 'Fellows',
-  description: 'Teachers and students who shape how Boz teaches.',
+  description:
+    'Boz Fellows are teachers and students who read real tutoring sessions, mark them, and tell us where the tutor talks too much.',
   body: `${text('Fellows read sessions, mark them, and tell us where the tutor talked too much. They are paid, credited, and listened to.', { tone: 'muted' })}
     ${text('Applications for the 2026 cohort are closed in this demonstration build.', { tone: 'muted' })}`,
 });
@@ -234,7 +265,8 @@ const fellows = simple({
 const fellowship = simple({
   path: 'fellowship',
   title: 'Reading Fellowship',
-  description: 'A funded term for students who want to read the long books properly.',
+  description:
+    'The Boz Reading Fellowship: twelve funded weeks, one long novel, weekly seminars and a stipend, for students aged 14 to 18.',
   body: `${text('Twelve weeks, one long novel, weekly seminars, and a stipend. Open to students aged 14 to 18.', { tone: 'muted' })}
     ${text('This page is a placeholder in the replica build; no applications are collected.', { tone: 'muted' })}`,
 });

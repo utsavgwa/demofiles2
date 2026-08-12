@@ -1,6 +1,7 @@
 // Shared HTML primitives. Mirrors the component vocabulary of the reference site
 // (Section / Heading / Text / Eyebrow / Button / Card / TornEdge) without a framework.
 import { site, consent } from '../data/site.mjs';
+import { absoluteUrl, ogImageUrl, seoConfig, graph } from './seo.mjs';
 
 export const esc = (s = '') =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -166,7 +167,22 @@ const consentPreferencesButton = () =>
 
 /* ---------- document shell ---------- */
 
-export const page = ({ title, description, body, bodyClass = '', scripts = [] }) => `<!doctype html>
+export const page = ({
+  title,
+  description,
+  body,
+  path = '/',
+  bodyClass = '',
+  scripts = [],
+  structuredData = [],
+  noindex = false,
+}) => {
+  const canonical = absoluteUrl(path);
+  const robots = noindex
+    ? 'noindex, follow'
+    : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
+
+  return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -174,11 +190,33 @@ export const page = ({ title, description, body, bodyClass = '', scripts = [] })
 ${consentScript()}
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}" />
+<meta name="robots" content="${robots}" />
+<link rel="canonical" href="${esc(canonical)}" />
+<meta name="theme-color" content="#7b2428" />
+<meta name="color-scheme" content="light" />
+
+<meta property="og:type" content="${path.startsWith('blog/') ? 'article' : 'website'}" />
+<meta property="og:site_name" content="${esc(site.name)}" />
+<meta property="og:locale" content="${esc(seoConfig.locale)}" />
 <meta property="og:title" content="${esc(title)}" />
 <meta property="og:description" content="${esc(description)}" />
-<meta property="og:type" content="website" />
+<meta property="og:url" content="${esc(canonical)}" />
+<meta property="og:image" content="${esc(ogImageUrl())}" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="${esc(`${site.name} — ${site.tagline}`)}" />
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="${esc(title)}" />
+<meta name="twitter:description" content="${esc(description)}" />
+<meta name="twitter:image" content="${esc(ogImageUrl())}" />
+<meta name="twitter:image:alt" content="${esc(`${site.name} — ${site.tagline}`)}" />
+
 <link rel="icon" href="/brand/inkwell.svg" type="image/svg+xml" />
+<link rel="alternate" type="application/atom+xml" title="${esc(site.name)} blog" href="/feed.xml" />
+<link rel="sitemap" type="application/xml" href="/sitemap.xml" />
 <link rel="stylesheet" href="/styles/app.css" />
+${structuredData.length ? `<script type="application/ld+json">${graph(structuredData)}</script>` : ''}
 </head>
 <body class="${bodyClass}">
 ${header()}
@@ -191,3 +229,4 @@ ${scripts.map((src) => `<script src="${esc(src)}" defer></script>`).join('\n')}
 </body>
 </html>
 `;
+};
