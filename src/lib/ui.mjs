@@ -1,6 +1,6 @@
 // Shared HTML primitives. Mirrors the component vocabulary of the reference site
 // (Section / Heading / Text / Eyebrow / Button / Card / TornEdge) without a framework.
-import { site } from '../data/site.mjs';
+import { site, consent } from '../data/site.mjs';
 
 export const esc = (s = '') =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -100,6 +100,7 @@ const footer = () => `
       <div class="footer-column legal">
         ${eyebrow('Legal')}
         ${site.footer.legal.map((l) => `<a class="footer-link" href="${esc(l.href)}">${esc(l.label)}</a>`).join('\n        ')}
+        ${consentPreferencesButton()}
         <p class="text small muted start copyright">&copy; ${site.year} ${esc(site.legalEntity)}</p>
       </div>
     </div>
@@ -145,6 +146,24 @@ export const field = ({
   </div>`;
 };
 
+/* ---------- consent ---------- */
+
+/**
+ * OneTrust's stub has to run in <head>, before anything that could set a cookie, so it
+ * cannot go through page({ scripts }) — those are deferred and appended to <body>.
+ */
+const consentScript = () =>
+  consent.enabled
+    ? `<script src="https://cdn.cookielaw.org/scripttemplates/otSDKStub.js" type="text/javascript" charset="UTF-8" data-domain-script="${esc(consent.domainScriptId)}"></script>
+<script type="text/javascript">function OptanonWrapper() {}</script>`
+    : '';
+
+/** Reopens the OneTrust preference centre. The class is what OneTrust binds to. */
+const consentPreferencesButton = () =>
+  consent.enabled
+    ? '<button type="button" class="footer-link ot-sdk-show-settings">Cookie preferences</button>'
+    : '';
+
 /* ---------- document shell ---------- */
 
 export const page = ({ title, description, body, bodyClass = '', scripts = [] }) => `<!doctype html>
@@ -152,6 +171,7 @@ export const page = ({ title, description, body, bodyClass = '', scripts = [] })
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+${consentScript()}
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}" />
 <meta property="og:title" content="${esc(title)}" />

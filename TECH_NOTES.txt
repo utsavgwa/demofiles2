@@ -570,3 +570,62 @@ WHAT THE ORIGINAL USES, AND WHY WE DID NOT COPY IT
   COMMANDS
     npm run build:pages   build the subpath variant locally
     npm run audit         build at root and verify
+
+
+================================================================================
+13. COOKIE CONSENT (D23)
+================================================================================
+
+  WHERE IT LIVES
+    src/lib/ui.mjs, in the page() shell. Every route renders through that one
+    function, so the stub reaches all 16 pages from a single edit. It is
+    emitted in <head>, immediately after the viewport meta and before <title>,
+    because a consent stub has to run before anything that could set a cookie.
+
+    It deliberately does NOT go through page({ scripts }): those tags are
+    deferred and appended to <body>, which is too late.
+
+  ENV-GATED, NOT HARDCODED
+    src/data/site.mjs reads ONETRUST_DOMAIN_ID from the environment and exports
+    consent = { provider, domainScriptId, enabled }. With no id set, nothing is
+    emitted: no script, no footer button, and the privacy page keeps saying the
+    site sets no cookies. With an id set, all three switch on together.
+
+    Why: a placeholder id would ship a broken banner to production and leave
+    the privacy page lying about it. Enabling consent is a repository-variable
+    change in the deploy workflow, not a code change.
+
+  WHAT SWITCHES ON TOGETHER
+    1. the OneTrust stub plus the OptanonWrapper hook, in <head>
+    2. a "Cookie preferences" button in the footer legal column, carrying the
+       ot-sdk-show-settings class the provider binds to. It is a <button>, not
+       a link, so button.footer-link in the stylesheet restores the anchor look
+    3. privacy page section 5: the "no cookies at all" paragraph is replaced,
+       and OptanonConsent and OptanonAlertBoxClosed are added to the cookie
+       table with their durations and opt-out routes
+    4. privacy section 6: a consent-management row in the processor table
+    5. privacy sections 3 and 11: the "stores only one thing" and "loads no
+       third-party scripts" claims are qualified
+
+    The legal copy branches on the same flag as the script. The documents
+    cannot drift out of step with what the site actually loads, because both
+    read consent.enabled.
+
+  AUDIT
+    When ONETRUST_DOMAIN_ID is set, audit.mjs fails the build if any page is
+    missing the stub, if the stub appears after <title>, or if the cookie
+    preferences control is absent. A page that quietly lost the banner would
+    be setting cookies without asking, so it fails the deploy.
+
+  TRADE-OFF
+    The banner is a third-party script from an external CDN, which is the one
+    exception to this build's no-third-party-request rule. It is unavoidable:
+    the point of a consent manager is that a vendor maintains the category
+    logic and the audit trail. It stays behind the flag so the default build
+    keeps its zero-external-request property.
+
+  NOT DONE
+    Blocking rules for scripts that would need consent. There are none here —
+    no analytics, no advertising, no embeds — so there is nothing to gate yet.
+    When one is added, it must be given a OneTrust category and loaded from
+    OptanonWrapper rather than directly.

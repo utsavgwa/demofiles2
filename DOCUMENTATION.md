@@ -484,6 +484,14 @@ skipped under `prefers-reduced-motion`.
 **Tooling.** `audit.mjs` (`npm run audit`) checks link integrity, heading order, form labelling,
 alt text, duplicate ids and page metadata across `dist/`, and exits non-zero on any violation.
 
+**Cookie consent.** The OneTrust stub is emitted from the `page()` shell in `src/lib/ui.mjs`,
+in `<head>` before `<title>`, so one edit covers all 16 routes. It is gated on an
+`ONETRUST_DOMAIN_ID` build variable: unset, nothing renders and the privacy page keeps its
+"no cookies at all" statement; set, the script, a footer *Cookie preferences* button, and the
+corresponding privacy-page cookie and processor entries all switch on together, because the
+legal copy branches on the same flag. `audit.mjs` fails the build if a page loses the stub,
+loads it after `<title>`, or has no preferences control. See `TECH_NOTES.txt` §13.
+
 **Bugs found and fixed during QA.** A double-escaped form label; a grid column inflated past the
 viewport on `/privacy` at 375px by a wide table (`min-width: auto` on grid children); four
 controls below the 24px minimum target size; the button contrast failure above.

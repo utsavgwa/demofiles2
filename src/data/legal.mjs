@@ -7,6 +7,8 @@
 //
 // Boz is fictional, so every factual claim is scoped by the demonstration notice at the top of
 // each page. The structure, clause coverage and language are production-grade; the entity is not.
+import { consent } from './site.mjs';
+
 export const legalMeta = {
   updated: '2026-08-12',
   entity: 'Boz Learning Ltd.',
@@ -85,7 +87,11 @@ export const privacy = {
         { type: 'h', body: 'What this demonstration site actually stores' },
         {
           type: 'p',
-          body: 'This build stores exactly one thing, and only if you submit the waitlist form: your entry, in your browser’s <code>localStorage</code> under the key <code>boz.waitlist.v1</code>. It is never transmitted anywhere. Clearing site data, or using the remove button on the confirmation panel, deletes it permanently.',
+          body:
+            'This build stores exactly one thing of its own, and only if you submit the waitlist form: your entry, in your browser’s <code>localStorage</code> under the key <code>boz.waitlist.v1</code>. It is never transmitted anywhere. Clearing site data, or using the remove button on the confirmation panel, deletes it permanently.' +
+            (consent.enabled
+              ? ' Our consent management provider also records your cookie choices, as described in section 5.'
+              : ''),
         },
       ],
     },
@@ -119,13 +125,21 @@ export const privacy = {
       blocks: [
         {
           type: 'p',
-          body: 'This demonstration site sets <strong>no cookies at all</strong> and loads no third-party scripts, so no consent banner is shown or needed. The table below covers what the production product would use.',
+          body: consent.enabled
+            ? `We use ${consent.provider} to ask for and record your cookie choices. Only strictly necessary storage is set before you choose; nothing optional is loaded unless you accept it. You can change or withdraw your choices at any time using the <strong>Cookie preferences</strong> link in the footer.`
+            : 'This demonstration site sets <strong>no cookies at all</strong> and loads no third-party scripts, so no consent banner is shown or needed. The table below covers what the production product would use.',
         },
         {
           type: 'table',
           caption: 'Cookies and storage',
           columns: ['Name', 'Type', 'Purpose', 'Duration', 'How to opt out'],
           rows: [
+            ...(consent.enabled
+              ? [
+                  ['OptanonConsent', 'Strictly necessary cookie', 'Records which cookie categories you accepted', '12 months', 'Withdraw consent in Cookie preferences, then clear site data'],
+                  ['OptanonAlertBoxClosed', 'Strictly necessary cookie', 'Remembers that you have answered the banner, so it stops appearing', '12 months', 'Clear site data in your browser'],
+                ]
+              : []),
             ['boz.waitlist.v1', 'Local storage (this build)', 'Remembers the waitlist entry you submitted so the page can show it back to you', 'Until you clear it', 'Use "Remove my entry" on the confirmation panel, or clear site data'],
             ['boz_session', 'Essential cookie (production)', 'Keeps a signed-in parent signed in', 'Session', 'Cannot be disabled while signed in; sign out to clear'],
             ['boz_prefs', 'Functional cookie (production)', 'Remembers interface preferences', '12 months', 'Clear site data in your browser'],
@@ -133,7 +147,11 @@ export const privacy = {
         },
         {
           type: 'p',
-          body: 'No analytics, advertising, or cross-site tracking cookies are used in either the demonstration or the described production product. Global Privacy Control signals are honoured as an opt-out of any sharing.',
+          body:
+            'No analytics, advertising, or cross-site tracking cookies are used in either the demonstration or the described production product. Global Privacy Control signals are honoured as an opt-out of any sharing.' +
+            (consent.enabled
+              ? ' The consent banner itself is the only third-party script this site loads, and it is classified as strictly necessary because its purpose is to record your choice.'
+              : ''),
         },
       ],
     },
@@ -155,9 +173,17 @@ export const privacy = {
             ['Language model API', 'Generating tutor turns', 'Session transcript for the current session'],
             ['Payment processor', 'Subscription billing', 'Parent email and card details, which never reach us'],
             ['Transactional email', 'Sign-in links and session summaries', 'Parent email address'],
+            ...(consent.enabled
+              ? [[`Consent management (${consent.provider})`, 'Presenting the cookie banner and storing your choice', 'IP address and the categories you accepted']]
+              : []),
           ],
         },
-        { type: 'p', body: 'This demonstration build sends data to none of them, because it sends data nowhere.' },
+        {
+          type: 'p',
+          body: consent.enabled
+            ? `This demonstration build sends data to none of them except ${consent.provider}, which is loaded to run the consent banner.`
+            : 'This demonstration build sends data to none of them, because it sends data nowhere.',
+        },
       ],
     },
     {
@@ -241,7 +267,9 @@ export const privacy = {
         },
         {
           type: 'p',
-          body: 'This demonstration site is static. It has no database, no login, no server-side code, and therefore no personal data to breach.',
+          body:
+            'This demonstration site is static. It has no database, no login, no server-side code, and therefore no personal data to breach.' +
+            (consent.enabled ? ' The consent banner runs entirely in your browser.' : ''),
         },
       ],
     },

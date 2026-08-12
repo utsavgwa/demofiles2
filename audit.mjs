@@ -12,6 +12,10 @@ const dist = join(dirname(fileURLToPath(import.meta.url)), 'dist');
 const BASE_PATH = (process.env.BASE_PATH ?? '').replace(/\/$/, '');
 const stripBase = (url) => (BASE_PATH && url.startsWith(`${BASE_PATH}/`) ? url.slice(BASE_PATH.length) : url);
 
+// When consent is switched on it must reach every page, and the stub must run before
+// anything else in <head>. A page that misses it would set cookies without asking.
+const CONSENT_ID = process.env.ONETRUST_DOMAIN_ID ?? '';
+
 async function walk(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
   const files = await Promise.all(
@@ -41,6 +45,13 @@ for (const file of pages) {
   if (!/<html lang="[a-z-]+"/.test(html)) fail(route, 'lang', 'missing <html lang>');
   if (!/<title>[^<]{5,}<\/title>/.test(html)) fail(route, 'title', 'missing or short <title>');
   if (!/<meta name="description" content="[^"]{20,}"/.test(html)) fail(route, 'description', 'missing meta description');
+
+  if (CONSENT_ID) {
+    const head = html.slice(0, html.indexOf('</head>'));
+    if (!head.includes(`data-domain-script="${CONSENT_ID}"`)) fail(route, 'consent', 'consent stub missing from <head>');
+    else if (head.indexOf('cookielaw.org') > head.indexOf('<title>')) fail(route, 'consent', 'consent stub loads after <title>');
+    if (!html.includes('ot-sdk-show-settings')) fail(route, 'consent', 'no cookie preferences control');
+  }
 
   // links and assets
   for (const [, raw] of html.matchAll(/(?:href|src)="(\/[^"#?]*)"/g)) {

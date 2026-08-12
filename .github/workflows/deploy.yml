@@ -33,11 +33,15 @@ jobs:
         env:
           BASE_PATH: ${{ steps.pages.outputs.base_path }}
           SITE_URL: ${{ steps.pages.outputs.origin }}
+          # Set the ONETRUST_DOMAIN_ID repository variable to switch the consent banner on.
+          # Empty means no banner script and no cookies, which is the current state.
+          ONETRUST_DOMAIN_ID: ${{ vars.ONETRUST_DOMAIN_ID }}
         run: node build.mjs
 
       - name: Audit (link integrity, headings, labels, metadata)
         env:
           BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          ONETRUST_DOMAIN_ID: ${{ vars.ONETRUST_DOMAIN_ID }}
         run: node audit.mjs
 
       - uses: actions/upload-pages-artifact@v3
