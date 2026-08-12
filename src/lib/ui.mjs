@@ -213,8 +213,14 @@ ${consentScript()}
 <meta name="twitter:image:alt" content="${esc(`${site.name} — ${site.tagline}`)}" />
 
 <link rel="icon" href="/brand/inkwell.svg" type="image/svg+xml" />
-<link rel="alternate" type="application/atom+xml" title="${esc(site.name)} blog" href="/feed.xml" />
-<link rel="sitemap" type="application/xml" href="/sitemap.xml" />
+${
+    // The feed and sitemap need absolute URLs, so they only exist in a build that knows
+    // SITE_URL. Linking them from a local preview build would be linking to nothing.
+    seoConfig.siteUrl
+      ? `<link rel="alternate" type="application/atom+xml" title="${esc(site.name)} blog" href="/feed.xml" />
+<link rel="sitemap" type="application/xml" href="/sitemap.xml" />`
+      : ''
+  }
 <link rel="stylesheet" href="/styles/app.css" />
 ${structuredData.length ? `<script type="application/ld+json">${graph(structuredData)}</script>` : ''}
 </head>
